@@ -60,13 +60,11 @@ void scan_callback(ble_gap_evt_adv_report_t* report)
   PRINT_LOCATION();
   uint8_t len = 0;
   uint8_t buffer[32];
+  uint16_t mfid;
   memset(buffer, 0, sizeof(buffer));
 
   /* Check for Manufacturer Specific Data */
-  len = Bluefruit.Scanner.parseReportByType(report, BLE_GAP_AD_TYPE_MANUFACTURER_SPECIFIC_DATA, buffer, sizeof(buffer));
-  if ((len) && (len = 0x0183)) {
-    Serial.println("Disney");
-    
+   
     /* Display the timestamp and device address */
     if (report->type.scan_response)
     {
@@ -177,15 +175,23 @@ void scan_callback(ble_gap_evt_adv_report_t* report)
     {
       Serial.printf("%14s ", "MAN SPEC DATA");
       Serial.printBuffer(buffer, len, '-');
+      mfid = buffer[0] + (buffer[1] << 8);
       Serial.println();
-      if (len = 0x0183) {
-        Serial.println("Disney");
-      }
+      Serial.println(mfid);
+      // if (mfid = 387) {
+      //   Serial.println();
+      //   Serial.println("Disney Beacon");
+      // }
+      // Serial.println();
+      // Serial.print("--- ");
+      // Serial.print(mfid);
+      // Serial.print(" ---");
+      Serial.println();
       memset(buffer, 0, sizeof(buffer));
     }  
 
     Serial.println();
-  }
+  
   // For Softdevice v6: after received a report, scanner will be paused
   // We need to call Scanner resume() to continue scanning
   Bluefruit.Scanner.resume();
