@@ -1,0 +1,24 @@
+Sketchbook location             c:\Users\darth\OneDrive\GitHub\
+
+Additonal boards manager URLs
+http://arduino.esp8266.com/stable/package_esp8266com_index.json
+https://adafruit.github.io/arduino-board-index/package_adafruit_index.json
+https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+
+Boards Manager
+Arduino AVR Boards                              1.8.6
+Arduino SAMD Boards (32-bits ARM Cortex-M0+)    1.8.13
+Adafruit AVR Boards                             1.4.15
+Adafruit nRF52                                  1.5.0
+ESP32Time                                       2.0.11
+
+
+Library Manager
+Adafruit BusIO                                  1.14.1
+Adafruit NeoPixel                               1.11.0  
+Adafruit Si7021 Library                         1.5.1
+DHT sensor Library for ESPx     
+DHT11                                           1.0.0
+ESP32Time                                       2.0.4
+RTClib                                          2.1.1
+TFT_eSPI                                        2.5.0
