@@ -76,6 +76,8 @@ void scan_callback(ble_gap_evt_adv_report_t* report)
     mfid = buffer[0] + (buffer[1] << 8);
     if (mfid == 0x0183) 
       {
+
+      Serial.printBuffer(buffer, len, '-');  
       /* Check for Manufacturer Specific Data */
     
       /* Shortened Local Name */
@@ -88,13 +90,13 @@ void scan_callback(ble_gap_evt_adv_report_t* report)
       /* Complete Local Name */
       if(Bluefruit.Scanner.parseReportByType(report, BLE_GAP_AD_TYPE_COMPLETE_LOCAL_NAME, buffer, sizeof(buffer)))
       {
-        beaconHost = buffer;
+        //beaconHost = buffer;
         //  Serial.printf("%14s %s, Hardware ID: ", "Beacon Host Name:", buffer);
         memset(buffer, 0, sizeof(buffer));
       }
 
       // MAC is in little endian --> print reverse
-      mac = report->peer_addr.addr;
+      //mac = report->peer_addr.addr;
       // Serial.printBufferReverse(report->peer_addr.addr, 6, ':');
       // Serial.print("\n");
 
