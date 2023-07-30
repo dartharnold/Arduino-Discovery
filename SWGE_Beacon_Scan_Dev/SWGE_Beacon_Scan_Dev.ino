@@ -1,30 +1,32 @@
-/*********************************************************************
- This is an example for our nRF52 based Bluefruit LE modules
-
- Pick one up today in the adafruit shop!
-
- Adafruit invests time and resources providing this open source code,
- please support Adafruit and open-source hardware by purchasing
- products from Adafruit!
-
- MIT license, check LICENSE for more information
- All text above, and the splash screen below must be included in
- any redistribution
-*********************************************************************/
-
 #include <bluefruit.h>
 
-/* For a list of EIR data types see:
- *    https://www.bluetooth.com/specifications/assigned-numbers/generic-access-profile
- *    Matching enum: cores/nRF5/SDK/components/softdevice/s132/headers/ble_gap.h */
+// Device Info
+const char* DEVNAME = "NavaComp1";
+
+// Counters and Timers
+#define CHANGEDELY  60000
+
+// Location IDs
+#define MARKETPLACE 0x01
+#define BEHINDDEPOT 0x02
+#define RESISTANCE  0x03
+#define UNKNOWN     0x04
+#define DROIDDEPOT  0x05
+#define DOKONDARS   0x06
+#define FIRSTORDER  0x07
+
+// Filters
+#define RSSI        -80
+#define BLE_DISNEY  0x0183
+const String IGNOREHOST = "DROIDTLBX";
 
 void setup() 
 {
   Serial.begin(115200);
   while ( !Serial ) delay(10);   // for nrf52840 with native usb
 
-  Serial.println("Bluefruit52 Central ADV Scan Example");
-  Serial.println("------------------------------------\n");
+  Serial.println("SWGE_Beacon_Scan");
+  Serial.println("----------------\n");
 
   // Initialize Bluefruit with maximum connections as Peripheral = 0, Central = 1
   // SRAM usage required by SoftDevice will increase dramatically with number of connections
@@ -32,10 +34,7 @@ void setup()
   Bluefruit.setTxPower(4);    // Check bluefruit.h for supported values
 
   /* Set the device name */
-  Bluefruit.setName("Bluefruit52");
-
-  /* Set the LED interval for blinky pattern on BLUE LED */
-  Bluefruit.setConnLedInterval(250);
+  Bluefruit.setName(DEVNAME);
 
   /* Start Central Scanning
    * - Enable auto scan if disconnected
@@ -46,157 +45,74 @@ void setup()
    */
   Bluefruit.Scanner.setRxCallback(scan_callback);
   Bluefruit.Scanner.restartOnDisconnect(true);
-  Bluefruit.Scanner.filterRssi(-80);
-  //Bluefruit.Scanner.filterUuid(BLEUART_UUID_SERVICE); // only invoke callback if detect bleuart service
+  Bluefruit.Scanner.filterRssi(RSSI);
+  Bluefruit.Scanner.filterMSD(BLE_DISNEY);
   Bluefruit.Scanner.setInterval(160, 80);       // in units of 0.625 ms
   Bluefruit.Scanner.useActiveScan(true);        // Request scan response data
   Bluefruit.Scanner.start(0);                   // 0 = Don't stop scanning after n seconds
 
-  Serial.println("Scanning ...");
+  Serial.println("Starting SWGE Location Scanning ...");
 }
 
 void scan_callback(ble_gap_evt_adv_report_t* report)
 {
   PRINT_LOCATION();
   uint8_t len = 0;
-  uint8_t buffer[32];
-  uint16_t mfid;
+  uint8_t beacon_name_buff[32];
+  String beacon_name = "";
+  uint8_t md_len = 0;
+  uint8_t md_buffer[32];
+
+  memset(beacon_name_buff, 0, sizeof(beacon_name_buff));
+  memset(md_buffer, 0, sizeof(md_buffer));
+
+  uint8_t mfg_size;
+  uint8_t mfg_data[32];
 
   // Scan Values to store
-  uint8_t beaconHost[32];
-  uint8_t mac[6];
-  int8_t rssi;
+  int8_t scan_rssi;
   uint16_t area_num;
 
-  memset(buffer, 0, sizeof(buffer));
-  
-  len = Bluefruit.Scanner.parseReportByType(report, BLE_GAP_AD_TYPE_MANUFACTURER_SPECIFIC_DATA, buffer, sizeof(buffer));
-  if (len)
+/* Check for Manufacturer Specific Data is it a Location?*/
+
+  md_len = Bluefruit.Scanner.parseReportByType(report, BLE_GAP_AD_TYPE_MANUFACTURER_SPECIFIC_DATA, md_buffer, sizeof(md_buffer));
+  if ((md_len) && (md_buffer[2] == 0x0A))
   {
-    mfid = buffer[0] + (buffer[1] << 8);
-    if (mfid == 0x0183) 
-      {
+    /* Complete Local Name */
+    Bluefruit.Scanner.parseReportByType(report, BLE_GAP_AD_TYPE_COMPLETE_LOCAL_NAME, beacon_name_buff, sizeof(beacon_name_buff));
 
-      Serial.printBuffer(buffer, len, '-');  
-      /* Check for Manufacturer Specific Data */
-    
-      /* Shortened Local Name */
-      // if(Bluefruit.Scanner.parseReportByType(report, BLE_GAP_AD_TYPE_SHORT_LOCAL_NAME, buffer, sizeof(buffer)))
-      // {
-      //   Serial.printf("%14s %s\n", "SHORT NAME", buffer);
-      //   memset(buffer, 0, sizeof(buffer));
-      // }
-
-      /* Complete Local Name */
-      if(Bluefruit.Scanner.parseReportByType(report, BLE_GAP_AD_TYPE_COMPLETE_LOCAL_NAME, buffer, sizeof(buffer)))
+    // Convert beacon_name_buff to string beacon_name
+    for (int i = 0; i < sizeof(beacon_name); i++)
+    {
+      if (beacon_name_buff[i] > 0)
       {
-        //beaconHost = buffer;
-        //  Serial.printf("%14s %s, Hardware ID: ", "Beacon Host Name:", buffer);
-        memset(buffer, 0, sizeof(buffer));
+        beacon_name.concat(char(beacon_name_buff[i]));
       }
+    }
 
-      // MAC is in little endian --> print reverse
-      //mac = report->peer_addr.addr;
-      // Serial.printBufferReverse(report->peer_addr.addr, 6, ':');
-      // Serial.print("\n");
+    if (beacon_name != IGNOREHOST)
+    {
+      // What is the location ID?
+      area_num = md_buffer[4];
 
       /* RSSI value */
-      rssi = report->rssi;
-      // Serial.printf("%14s %d dBm\n", "RSSI", report->rssi);
+      scan_rssi = report->rssi;
 
-      /* TX Power Level */
-      // if (Bluefruit.Scanner.parseReportByType(report, BLE_GAP_AD_TYPE_TX_POWER_LEVEL, buffer, sizeof(buffer)))
-      // {
-      //   Serial.printf("%14s %i\n", "TX PWR LEVEL", buffer[0]);
-      //   memset(buffer, 0, sizeof(buffer));
-      // }
-
-      // /* Check for UUID16 Complete List */
-      // len = Bluefruit.Scanner.parseReportByType(report, BLE_GAP_AD_TYPE_16BIT_SERVICE_UUID_COMPLETE, buffer, sizeof(buffer));
-      // if ( len )
-      // {
-      //   printUuid16List(buffer, len);
-      // }
-
-      // /* Check for UUID16 More Available List */
-      // len = Bluefruit.Scanner.parseReportByType(report, BLE_GAP_AD_TYPE_16BIT_SERVICE_UUID_MORE_AVAILABLE, buffer, sizeof(buffer));
-      // if ( len )
-      // {
-      //   printUuid16List(buffer, len);
-      // }
-
-      // /* Check for UUID128 Complete List */
-      // len = Bluefruit.Scanner.parseReportByType(report, BLE_GAP_AD_TYPE_128BIT_SERVICE_UUID_COMPLETE, buffer, sizeof(buffer));
-      // if ( len )
-      // {
-      //   printUuid128List(buffer, len);
-      // }
-
-      // /* Check for UUID128 More Available List */
-      // len = Bluefruit.Scanner.parseReportByType(report, BLE_GAP_AD_TYPE_128BIT_SERVICE_UUID_MORE_AVAILABLE, buffer, sizeof(buffer));
-      // if ( len )
-      // {
-      //   printUuid128List(buffer, len);
-      // }  
-
-      // /* Check for BLE UART UUID */
-      // if ( Bluefruit.Scanner.checkReportForUuid(report, BLEUART_UUID_SERVICE) )
-      // {
-      //   Serial.printf("%14s %s\n", "BLE UART", "UUID Found!");
-      // }
-
-      // /* Check for DIS UUID */
-      // if ( Bluefruit.Scanner.checkReportForUuid(report, UUID16_SVC_DEVICE_INFORMATION) )
-      // {
-      //   Serial.printf("%14s %s\n", "DIS", "UUID Found!");
-      // }
-
-      /* Check for Manufacturer Specific Data */
-      len = Bluefruit.Scanner.parseReportByType(report, BLE_GAP_AD_TYPE_MANUFACTURER_SPECIFIC_DATA, buffer, sizeof(buffer));
-      if (len)
-      {
-        // Serial.printf("%14s ", "MAN SPEC DATA");
-        // Serial.printBuffer(buffer, len, '-');
-        // Serial.println();
-        area_num = buffer[4];
-        // Serial.print("Area #: ");
-        // Serial.println(area_num);
-        memset(buffer, 0, sizeof(buffer));
-      }  
-      // Serial.println();
+      Serial.println();
+      Serial.print("Beacon Host: ");
+      Serial.println(beacon_name);
+      Serial.print("RSSI: ");
+      Serial.print(scan_rssi);
+      Serial.println(" dBm");
+      Serial.print("Area #: ");
+      Serial.println(area_num);
+      Serial.println("----------------\n");
     }
   }
-  
+
   // For Softdevice v6: after received a report, scanner will be paused
   // We need to call Scanner resume() to continue scanning
   Bluefruit.Scanner.resume();  
-}
-
-void printUuid16List(uint8_t* buffer, uint8_t len)
-{
-  Serial.printf("%14s %s", "16-Bit UUID");
-  for(int i=0; i<len; i+=2)
-  {
-    uint16_t uuid16;
-    memcpy(&uuid16, buffer+i, 2);
-    Serial.printf("%04X ", uuid16);
-  }
-  Serial.println();
-}
-
-void printUuid128List(uint8_t* buffer, uint8_t len)
-{
-  (void) len;
-  Serial.printf("%14s %s", "128-Bit UUID");
-
-  // Print reversed order
-  for(int i=0; i<16; i++)
-  {
-    const char* fm = (i==4 || i==6 || i==8 || i==10) ? "-%02X" : "%02X";
-    Serial.printf(fm, buffer[15-i]);
-  }
-
-  Serial.println();  
 }
 
 void loop() 
