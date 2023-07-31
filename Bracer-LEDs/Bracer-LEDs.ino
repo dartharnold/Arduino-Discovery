@@ -13,6 +13,8 @@
 #define PIXELCOUNT   2  // How many NeoPixels are attached to the Arduino?
 #define PIXELFORMAT  NEO_GRB + NEO_KHZ800  // NeoPixel color format & data rate. See the strandtest example for information on possible values.
 
+uint32_t RED, GREEN, BLUE, CYAN, PURPLE, YELLOW, WHITE, BLACK;
+
 // Rather than declaring the whole NeoPixel object here, we just create
 // a pointer for one, which we'll then allocate later...
 Adafruit_NeoPixel *pixels;
@@ -21,6 +23,15 @@ void setup() {
  
   // Create a new NeoPixel object dynamically with these values:
   pixels = new Adafruit_NeoPixel(PIXELCOUNT, NEOPIN, PIXELFORMAT);
+
+  RED = pixels->Color(255, 0, 0);
+  GREEN = pixels->Color(0, 255, 0);
+  BLUE = pixels->Color(0, 0, 255);
+  CYAN = pixels->Color(0, 255, 255);
+  PURPLE = pixels->Color(255, 0, 255);
+  YELLOW = pixels->Color(255, 255, 0);
+  WHITE = pixels->Color(255, 255, 255);
+  BLACK = pixels->Color(0, 0, 0);
 
   pixels->begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
 }
@@ -37,7 +48,7 @@ void updatePixels() {
   
   // Setup to turn Pixels On
   for (pixel = 0; pixel <= PIXELCOUNT; pixel ++) {
-    pixels->setPixelColor(pixel, pixels->Color(255, 0, 0));
+    pixels->setPixelColor(pixel, YELLOW);
   }
   pixels->setBrightness(75);
   pixels->show();   // Send the updated pixel colors to the hardware.
@@ -46,5 +57,5 @@ void updatePixels() {
 
 void loop() {
   updatePixels();
-  printf("loop");
+  Serial.printf("%d\n", YELLOW);
 }
