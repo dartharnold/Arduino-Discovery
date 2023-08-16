@@ -1,101 +1,195 @@
 /*
- An example digital clock using a TFT LCD screen to show the time.
- Demonstrates use of the font printing routines. (Time updates but date does not.)
-
- It uses the time of compile/upload to set the time
- For a more accurate clock, it would be better to use the RTClib library.
- But this is just a demo...
-
- Make sure all the display driver and pin connections are correct by
- editing the User_Setup.h file in the TFT_eSPI library folder.
-
- #########################################################################
- ###### DON'T FORGET TO UPDATE THE User_Setup.h FILE IN THE LIBRARY ######
- #########################################################################
-
  Based on clock sketch by Gilchrist 6/2/2014 1.0
 
 A few colour codes:
+Default color definitions
+TFT_BLACK       0x0000      [   0,   0,   0 ]
+TFT_NAVY        0x000F      [   0,   0, 128 ]
+TFT_DARKGREEN   0x03E0      [   0, 128,   0 ]
+TFT_DARKCYAN    0x03EF      [   0, 128, 128 ]
+TFT_MAROON      0x7800      [ 128,   0,   0 ]
+TFT_PURPLE      0x780F      [ 128,   0, 128 ]
+TFT_OLIVE       0x7BE0      [ 128, 128,   0 ]
+TFT_LIGHTGREY   0xD69A      [ 211, 211, 211 ]
+TFT_DARKGREY    0x7BEF      [ 128, 128, 128 ]
+TFT_BLUE        0x001F      [   0,   0, 255 ]
+TFT_GREEN       0x07E0      [   0, 255,   0 ]
+TFT_CYAN        0x07FF      [   0, 255, 255 ]
+TFT_RED         0xF800      [ 255,   0,   0 ]
+TFT_MAGENTA     0xF81F      [ 255,   0, 255 ]
+TFT_YELLOW      0xFFE0      [ 255, 255,   0 ]
+TFT_WHITE       0xFFFF      [ 255, 255, 255 ]
+TFT_ORANGE      0xFDA0      [ 255, 180,   0 ]
+TFT_GREENYELLOW 0xB7E0      [ 180, 255,   0 ]
+TFT_PINK        0xFE19      [ 255, 192, 203 ] Lighter pink, was 0xFC9F
+TFT_BROWN       0x9A60      [ 150,  75,   0 ]
+TFT_GOLD        0xFEA0      [ 255, 215,   0 ]
+TFT_SILVER      0xC618      [ 192, 192, 192 ]
+TFT_SKYBLUE     0x867D      [ 135, 206, 235 ]
+TFT_VIOLET      0x915C      [ 180,  46, 226 ]
+*/
 
-code	color
-0x0000	Black
-0xFFFF	White
-0xBDF7	Light Gray
-0x7BEF	Dark Gray
-0xF800	Red
-0xFFE0	Yellow
-0xFBE0	Orange
-0x79E0	Brown
-0x7E0	Green
-0x7FF	Cyan
-0x1F	Blue
-0xF81F	Pink
-
- */
-
-#include <TFT_eSPI.h> // Hardware-specific library
+#include <TFT_eSPI.h>
 #include <SPI.h>
-#include <DHT11.h>
-#include "Wire.h"
+#include "Wire.h"   // for I2C communication
+
+// Adafruit Temprature & Humidity Sensor
+#include "Adafruit_Si7021.h"
+
+// Real Time Clock
 #include "RTClib.h"
 
-#define TFT_GREY 0x5AEB
+// Load Fonts being used
+#include "AurebeshAF_Canon10pt7b.h"
+#include "AurebeshAF_Canon20pt7b.h"
+#include "AurebeshAF_Canon30pt7b.h"
+
+// Define Custome colors
+#define TFT_GREY 0x39C4
 
 TFT_eSPI tft = TFT_eSPI();       // Invoke custom library
 
-uint32_t targetTime = 0;                    // for next 1 second timeout
-
-static uint8_t conv2d(const char* p); // Forward declaration needed for IDE 1.6.x
-
-uint8_t hh = conv2d(__TIME__), mm = conv2d(__TIME__ + 3), ss = conv2d(__TIME__ + 6); // Get H, M, S from compile time
-
-byte omm = 99, oss = 99;
+byte omm = 99, oss = 99, ohh = 99, pss = 99;
 byte xcolon = 0, xsecs = 0;
 unsigned int colour = 0;
 
 RTC_PCF8523 rtc;
 
-#define TEMPF_OFFSET   -1.3
+#define TEMPF_OFFSET  -1.3
 #define HUMID_OFFSET  -2
 
 char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+char spcdaysOfTheWeek[7][12] = {"Sunday   ", "Monday   ", "Tuesday  ", "Wednesday", "Thursday ", "Friday   ", "Saturday "};   // padding added so all days are same size
 
-// Create an instance of the DHT11 class and set the digital I/O pin.
-DHT11 dht11(1);
+Adafruit_Si7021 sensor = Adafruit_Si7021();
+
 // Declare variables to hold Temprature and Humidity
 float humidity, temp_c, temp_f;
+
+// Functions
+void draw_date()
+{
+  // positioning of Date Line
+  int dxpos = 8;
+  int dypos = 25; // Top of Date String
+
+  tft.setFreeFont(&AurebeshAF_Canon10pt7b);
+  dxpos += tft.drawString(spcdaysOfTheWeek[now.dayOfTheWeek()], dxpos, dypos);
+  dxpos += tft.drawChar(' ', dxpos, dypos);
+  if (now.month() < 10) dxpos += tft.drawNumber(0, dxpos, dypos);
+  dxpos += tft.drawNumber(now.month(), dxpos, dypos);
+  dxpos += tft.drawChar('/', dxpos, dypos + 16);
+  if (now.day() < 10) dxpos += tft.drawNumber(0, dxpos, dypos);
+  dxpos += tft.drawNumber(now.day(), dxpos, dypos);
+  dxpos += tft.drawChar('/', dxpos, dypos + 16);
+  dxpos += tft.drawNumber(now.year(), dxpos, dypos);
+}
 
 void get_hum_temp()
 {
     // Read the humidity from the sensor.
-    humidity = dht11.readHumidity() + HUMID_OFFSET;
+    humidity = sensor.readHumidity() + HUMID_OFFSET;
 
     // Read the temperature from the sensor.
-    temp_c = dht11.readTemperature();
+    temp_c = sensor.readTemperature();
 
     // Calculate temperature from C
     temp_f = (((temp_c*9)/5)+32) + TEMPF_OFFSET;
 }
 
-void setup(void) {
-  //Serial.begin(115200);
+void draw_enviro()
+{
+  // Positioning of Temp & Humid
+  int txpos = 8;
+  int typos = 120;
+  int hxpos = 8;
+  int hypos = 140;
+
+  get_hum_temp();
+
+  txpos =+ tft.drawString("Temprature:     °F", txpos, typos);  // ° not displaying but left in for positioning of Temp Calc
+  
+  // back up the txpos based on number of Digits
+  if (temp_f > 99) {
+    txpos = txpos - 62;
+  } else if (temp_f > 9) {
+    txpos = txpos - 46;
+  } else {
+    txpos = txpos - 30;
+  }
+
+  txpos =+ tft.drawNumber(temp_f, txpos, typos);
+
+  hxpos =+ tft.drawNumber(humidity, hxpos, hypos);
+  hxpos =+ tft.drawString("% Humidity", hxpos + 10, hypos);
+}
+
+void draw_time()
+{
+  // Update digital time
+  int xpos = 8;
+  int ypos = 57; // Top left corner ot clock text, about half way down
+  int ysecs = ypos + 14;
+
+  if (omm != now.minute()) { // Redraw hours and minutes time every minute
+    omm = now.minute();
+
+    tft.setFreeFont(&AurebeshAF_Canon30pt7b);
+    // Draw hours and minutes
+    if (now.hour() < 10) xpos += tft.drawNumber(0, xpos, ypos); // Add hours leading zero for 24 hr clock
+    xpos += tft.drawNumber(now.hour(), xpos, ypos);             // Draw hours
+    xcolon = xpos; // Save colon coord for later to flash on/off later
+    xpos += tft.drawChar(':', xpos, ypos + 45);
+    if (now.minute() < 10) xpos += tft.drawNumber(0, xpos, ypos); // Add minutes leading zero
+    xpos += tft.drawNumber(now.minute(), xpos, ypos);             // Draw minutes
+
+    xsecs = xpos; // Save seconds 'x' position for later display updates
+  }
+
+  if (oss != now.second()) { // Redraw seconds time every second
+  oss = now.second();
+  xpos = xsecs;
+
+  if (now.second() % 2) { // Flash the colons on/off
+    tft.setFreeFont(&AurebeshAF_Canon30pt7b);
+    tft.setTextColor(TFT_GREY, TFT_MAROON);         // Set colour to grey to dim colon
+    tft.drawChar(':', xcolon, ypos + 45);         // Hour:minute colon
+    tft.setFreeFont(&AurebeshAF_Canon20pt7b);
+    xpos += tft.drawChar(':', xsecs, ysecs + 30); // Seconds colon
+    tft.setTextColor(TFT_WHITE, TFT_MAROON);      // Set colour back to yellow
+  }
+  else {
+    tft.setFreeFont(&AurebeshAF_Canon30pt7b);
+    tft.drawChar(':', xcolon, ypos + 45);         // Hour:minute colon
+    tft.setFreeFont(&AurebeshAF_Canon20pt7b);
+    xpos += tft.drawChar(':', xsecs, ysecs + 30); // Seconds colon
+  }
+
+  tft.setFreeFont(&AurebeshAF_Canon20pt7b);
+  //Draw seconds
+  if (now.second() < 10) xpos += tft.drawNumber(0, xpos, ysecs); // Add leading zero
+  tft.drawNumber(now.second(), xpos, ysecs);                     // Draw seconds
+  }
+}
+
+void setup_tft(void) {
   tft.init();
   tft.setRotation(3);
-  tft.fillScreen(TFT_BLACK);
+  tft.fillScreen(TFT_MAROON);
 
   tft.setTextSize(1);
-  tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+  // tft.setTextColor(TFT_YELLOW, TFT_MAROON);
+  tft.setTextColor(TFT_WHITE, TFT_MAROON);
 
-  targetTime = millis() + 1000;
+  tft.setFreeFont(&AurebeshAF_Canon30pt7b);
+}
 
-    //Setup SDA, SCL for RTC
+void setup_sensors(void){
+  //Setup SDA, SCL for RTC
   Wire.begin(43, 44);
   
   //Setup for Serial Console
   Serial.begin(57600);
-  #ifndef ESP8266
-    while (!Serial); // wait for serial port to connect. Needed for native USB
-  #endif
 
   // Is the RTC Present?
   if (! rtc.begin()) {
@@ -104,8 +198,16 @@ void setup(void) {
     while (1) delay(10);
   }
 
-  // following line sets the RTC to the date & time this sketch was compiled
-  rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+  if (! rtc.initialized() || rtc.lostPower()) {
+    // When time needs to be set on a new device, or after a power loss, the
+    // following line sets the RTC to the date & time this sketch was compiled
+    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+
+    // Note: allow 2 seconds after inserting battery or applying external power
+    // without battery before calling adjust(). This gives the PCF8523's
+    // crystal oscillator time to stabilize. If you call adjust() very quickly
+    // after the RTC is powered, lostPower() may still return true.
+  }
 
   // When the RTC was stopped and stays connected to the battery, it has 
   // to be restarted by clearing the STOP bit. Let's do this to ensure
@@ -139,72 +241,31 @@ void setup(void) {
   // Serial.print("Offset is "); Serial.println(offset); // Print to control offset
 }
 
+void setup(void) {
+  setup_tft();
+  setup_sensors();
+}
+
 void loop() {
-  if (targetTime < millis()) {
-    // Set next update for 1 second later
-    targetTime = millis() + 1000;
+  
+  DateTime now = rtc.now();
 
-    // Adjust the time values by adding 1 second
-    ss++;              // Advance second
-    if (ss == 60) {    // Check for roll-over
-      ss = 0;          // Reset seconds to zero
-      omm = mm;        // Save last minute time for display update
-      mm++;            // Advance minute
-      if (mm > 59) {   // Check for roll-over
-        mm = 0;
-        hh++;          // Advance hour
-        if (hh > 23) { // Check for 24hr roll-over (could roll-over on 13)
-          hh = 0;      // 0 for 24 hour clock, set to 1 for 12 hour clock
-        }
-      }
+  if (pss != now.second()) 
+  {
+    pss = now.second();
+
+    if (ohh != now.hour()) 
+    {
+      ohh = now.hour();
+      draw_date();
     }
 
-
-    // Update digital time
-    int xpos = 0;
-    int ypos = 42; // Top left corner ot clock text, about half way down
-    int ysecs = ypos + 24;
-
-    if (omm != mm) { // Redraw hours and minutes time every minute
-      omm = mm;
-      // Draw hours and minutes
-      if (hh < 10) xpos += tft.drawChar('0', xpos, ypos, 8); // Add hours leading zero for 24 hr clock
-      xpos += tft.drawNumber(hh, xpos, ypos, 8);             // Draw hours
-      xcolon = xpos; // Save colon coord for later to flash on/off later
-      xpos += tft.drawChar(':', xpos, ypos - 8, 8);
-      if (mm < 10) xpos += tft.drawChar('0', xpos, ypos, 8); // Add minutes leading zero
-      xpos += tft.drawNumber(mm, xpos, ypos, 8);             // Draw minutes
-      xsecs = xpos; // Sae seconds 'x' position for later display updates
+    if (omm != now.minute())
+    {
+      draw_enviro();
     }
-    if (oss != ss) { // Redraw seconds time every second
-      oss = ss;
-      xpos = xsecs;
 
-      if (ss % 2) { // Flash the colons on/off
-        tft.setTextColor(0x39C4, TFT_BLACK);        // Set colour to grey to dim colon
-        tft.drawChar(':', xcolon, ypos - 8, 8);     // Hour:minute colon
-        xpos += tft.drawChar(':', xsecs, ysecs, 6); // Seconds colon
-        tft.setTextColor(TFT_YELLOW, TFT_BLACK);    // Set colour back to yellow
-      }
-      else {
-        tft.drawChar(':', xcolon, ypos - 8, 8);     // Hour:minute colon
-        xpos += tft.drawChar(':', xsecs, ysecs, 6); // Seconds colon
-      }
-
-      //Draw seconds
-      if (ss < 10) xpos += tft.drawChar('0', xpos, ysecs, 6); // Add leading zero
-      tft.drawNumber(ss, xpos, ysecs, 6);                     // Draw seconds
-    }
+    draw_time();
   }
 }
-
-// Function to extract numbers from compile time string
-static uint8_t conv2d(const char* p) {
-  uint8_t v = 0;
-  if ('0' <= *p && *p <= '9')
-    v = *p - '0';
-  return 10 * v + *++p - '0';
-}
-
-
 

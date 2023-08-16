@@ -9,6 +9,7 @@ char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursd
 
 void setup () {
     Serial.begin(115200);
+    Wire.begin(43, 44);
 
     #ifndef ESP8266
         while (!Serial); // wait for serial port to connect. Needed for native USB
@@ -20,30 +21,27 @@ void setup () {
         while (1) delay(10);
     }
 
-    if (! etc.initialized() || etc.lostPower()) {
+    // if (! etc.initialized() || etc.lostPower()) {
 
-        Serial.println("RTC is NOT initialized, let's set the time!");
+    //   Serial.println("RTC is NOT initialized, let's set the time!");
 
         // When time needs to be set on a new device, or after a power loss, the
         // following line sets the RTC to the date & time this sketch was compiled
 
-        etc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+      etc.adjust(DateTime(F(__DATE__), F(__TIME__)));
 
         // This line sets the RTC with an explicit date & time, for example to set
         // January 21, 2014 at 3am you would call:
 
-        etc.adjust(DateTime(2022, 3, 2, 11, 33, 30));
+        // etc.adjust(DateTime(2022, 3, 2, 11, 33, 30));
 
         // Note: allow 2 seconds after inserting battery or applying external power
         // without battery before calling adjust(). This gives the PCF8523's
         // crystal oscillator time to stabilize. If you call adjust() very quickly
         // after the RTC is powered, lostPower() may still return true.
 
-    }
+    // }
 
-    // When time needs to be re-set on a previously configured device, the
-    // following line sets the RTC to the date & time this sketch was compiled
-    //etc.adjust(DateTime(F(__DATE__), F(__TIME__)));
     // This line sets the RTC with an explicit date & time, for example to set
     // January 21, 2014 at 3am you would call:
     // etc.adjust(DateTime(2022, 3, 7, 10, 26, 00));
@@ -77,7 +75,7 @@ void setup () {
     // rtc.calibrate(PCF8523_TwoHours, offset); // Un-comment to perform calibration once drift (seconds) and observation period (seconds) are correct
     // rtc.calibrate(PCF8523_TwoHours, 0); // Un-comment to cancel previous calibration
 
-    Serial.print("Offset is "); Serial.println(offset); // Print to control offset
+    // Serial.print("Offset is "); Serial.println(offset); // Print to control offset
     rtc.setTime(30, 24, 15, 17, 1, 2021); // 17th Jan 2021 15:24:30
 }
 
