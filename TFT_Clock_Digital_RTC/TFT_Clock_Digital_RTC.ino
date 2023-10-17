@@ -1,6 +1,6 @@
-/*
- Based on clock sketch by Gilchrist 6/2/2014 1.0
+// Based on clock sketch by Gilchrist 6/2/2014 1.0
 
+/*
 A few colour codes:
 Default color definitions
 TFT_BLACK       0x0000      [   0,   0,   0 ]
@@ -32,6 +32,8 @@ TFT_VIOLET      0x915C      [ 180,  46, 226 ]
 #include <TFT_eSPI.h>
 #include <SPI.h>
 #include "Wire.h"   // for I2C communication
+#include <WiFi.h>
+#include "time.h"
 
 // Adafruit Temprature & Humidity Sensor
 #include "Adafruit_Si7021.h"
@@ -39,10 +41,20 @@ TFT_VIOLET      0x915C      [ 180,  46, 226 ]
 // Real Time Clock
 #include "RTClib.h"
 
-// Load Fonts being used
+// Load GFS Fonts being used
 #include "AurebeshAF_Canon10pt7b.h"
 #include "AurebeshAF_Canon20pt7b.h"
 #include "AurebeshAF_Canon30pt7b.h"
+
+// OpenFontRender Items
+// #include "AurebeshAF-Canon.h"
+// #include "OpenFontRender.h"
+
+// OpenFontRender fRender;
+
+// Which RTC is Connected  Uncomment the RTC Board connected to IC2
+#define PCF8523
+// #define DS1307
 
 // Define Custome colors
 #define TFT_GREY 0x39C4
@@ -53,13 +65,29 @@ byte omm = 99, oss = 99, ohh = 99, pss = 99;
 byte xcolon = 0, xsecs = 0;
 unsigned int colour = 0;
 
-RTC_PCF8523 rtc;
+#ifdef PCF8523
+  RTC_PCF8523 rtc;
+#endif
+
+#ifdef DS1307
+  RTC_DS1307 rtc;
+#endif
 
 #define TEMPF_OFFSET  -1.3
 #define HUMID_OFFSET  -2
 
+const char* ssid     = "R2-EK0";
+const char* password = "onetruedarth";
+
+// const char* ssid     = "mustafar";
+// const char* password = "V@d3rWasFram3d";
+
+const char* ntpServer = "pool.ntp.org";
+const long  gmtOffset_sec = -6*60*60;
+const int   daylightOffset_sec = 3600;
+
 char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
-char spcdaysOfTheWeek[7][12] = {"Sunday   ", "Monday   ", "Tuesday  ", "Wednesday", "Thursday ", "Friday   ", "Saturday "};   // padding added so all days are same size
+char spcdaysOfTheWeek[7][12] = {"Sunday  ", "Monday  ", "Tuesday ", "Wednesday", "Thursday ", "Friday ", "Saturday "};   // padding added so all days are same size
 
 Adafruit_Si7021 sensor = Adafruit_Si7021();
 
@@ -67,11 +95,58 @@ Adafruit_Si7021 sensor = Adafruit_Si7021();
 float humidity, temp_c, temp_f;
 
 // Functions
+void wifi_setTime()
+{
+ struct tm timeinfo;
+    if(!getLocalTime(&timeinfo)){
+    Serial.println("Failed to obtain time");
+    return;
+  }
+
+  int year = timeinfo.tm_year;
+  char timeYear[5];
+  char timeMonth[3];
+  char timeDay[3];
+  char timeHour[3];
+  char timeMinute[3];
+  char timeSecond[3];
+
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("");
+  Serial.println("WiFi connected.");
+  
+  // Init and get the time
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+ 
+  Serial.println("Set iTime Varable");
+
+  strftime(timeYear,5, "%Y", &timeinfo);
+  strftime(timeMonth,3, "%m", &timeinfo);
+  strftime(timeDay,3, "%d", &timeinfo);
+  strftime(timeHour,3, "%H", &timeinfo);
+  strftime(timeMinute,3, "%M", &timeinfo);
+  strftime(timeSecond,3, "%S", &timeinfo);
+
+  Serial.println("Set time on RTC");
+
+  rtc.adjust(DateTime(atoi(timeYear), atoi(timeMonth), atoi(timeDay), atoi(timeHour), atoi(timeMinute), atoi(timeSecond)));
+
+  //disconnect WiFi as it's no longer needed
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
+}
+
 void draw_date()
 {
   // positioning of Date Line
   int dxpos = 8;
   int dypos = 25; // Top of Date String
+
+  DateTime now = rtc.now();
 
   tft.setFreeFont(&AurebeshAF_Canon10pt7b);
   dxpos += tft.drawString(spcdaysOfTheWeek[now.dayOfTheWeek()], dxpos, dypos);
@@ -107,6 +182,7 @@ void draw_enviro()
 
   get_hum_temp();
 
+  tft.setFreeFont(&AurebeshAF_Canon10pt7b);
   txpos =+ tft.drawString("Temprature:     °F", txpos, typos);  // ° not displaying but left in for positioning of Temp Calc
   
   // back up the txpos based on number of Digits
@@ -130,6 +206,8 @@ void draw_time()
   int xpos = 8;
   int ypos = 57; // Top left corner ot clock text, about half way down
   int ysecs = ypos + 14;
+
+  DateTime now = rtc.now();
 
   if (omm != now.minute()) { // Redraw hours and minutes time every minute
     omm = now.minute();
@@ -197,22 +275,28 @@ void setup_sensors(void){
     Serial.flush();
     while (1) delay(10);
   }
+  #ifdef PCF8523
+    if (! rtc.initialized() || rtc.lostPower()) {
+      // When time needs to be set on a new device, or after a power loss, the
+      // following line sets the RTC to the date & time this sketch was compiled
+      //rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+      wifi_setTime();
 
-  if (! rtc.initialized() || rtc.lostPower()) {
-    // When time needs to be set on a new device, or after a power loss, the
-    // following line sets the RTC to the date & time this sketch was compiled
-    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+      // Note: allow 2 seconds after inserting battery or applying external power
+      // without battery before calling adjust(). This gives the PCF8523's
+      // crystal oscillator time to stabilize. If you call adjust() very quickly
+      // after the RTC is powered, lostPower() may still return true.
+    }
 
-    // Note: allow 2 seconds after inserting battery or applying external power
-    // without battery before calling adjust(). This gives the PCF8523's
-    // crystal oscillator time to stabilize. If you call adjust() very quickly
-    // after the RTC is powered, lostPower() may still return true.
-  }
+    // When the RTC was stopped and stays connected to the battery, it has 
+    // to be restarted by clearing the STOP bit. Let's do this to ensure
+    // the RTC is running.
+    rtc.start();
+  #endif
 
-  // When the RTC was stopped and stays connected to the battery, it has 
-  // to be restarted by clearing the STOP bit. Let's do this to ensure
-  // the RTC is running.
-  rtc.start();
+  #ifdef DS1307
+    rtc.begin();
+  #endif
 
   // The PCF8523 can be calibrated for:
   //        - Aging adjustment
