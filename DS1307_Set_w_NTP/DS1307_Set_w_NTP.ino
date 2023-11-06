@@ -15,8 +15,8 @@
 #include "Wire.h"
 
 // Which RTC is Connected  Uncomment the RTC Board connected to IC2
-//#define PCF8523
-#define DS1307
+#define PCF8523
+//#define DS1307
 
 #ifdef PCF8523
   RTC_PCF8523 rtc;
@@ -26,11 +26,11 @@
   RTC_DS1307 rtc;
 #endif
 
-const char* ssid     = "R2-EK0";
-const char* password = "onetruedarth";
+//const char* ssid     = "R2-EK0";
+//const char* password = "onetruedarth";
 
-// const char* ssid     = "mustafar";
-// const char* password = "V@d3rWasFram3d";
+const char* ssid     = "mustafar";
+const char* password = "V@d3rWasFram3d";
 
 const char* ntpServer = "pool.ntp.org";
 const long  gmtOffset_sec = -6*60*60;
@@ -45,11 +45,11 @@ void setup(){
   Wire.begin(43,44);
 
   #ifdef PCF8523
-    if (! rtc.initialized() || rtc.lostPower()) {
-      // When time needs to be set on a new device, or after a power loss, the
-      // following line sets the RTC to the date & time this sketch was compiled
-      rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
-    }
+    // if (! rtc.initialized() || rtc.lostPower()) {
+    //   // When time needs to be set on a new device, or after a power loss, the
+    //   // following line sets the RTC to the date & time this sketch was compiled
+    //   rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    // }
     rtc.start();
   #endif
 
